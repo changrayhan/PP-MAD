@@ -2,8 +2,11 @@
 import socket
 import numpy as np
 import tenseal as ts
+from PIL import Image
+import torchvision.transforms as transforms
 from .encryption import HomomorphicEncryption
 from shared.communication import CommunicationProtocol
+from server.model import WideResNet101FeatureExtractor  # 导入特征提取器
 import logging
 import json
 
@@ -12,6 +15,7 @@ class MedicalAIClient:
         self.server_host = server_host
         self.server_port = server_port
         self.encryption = HomomorphicEncryption()
+        self.feature_extractor = WideResNet101FeatureExtractor()  # 初始化特征提取器
         self.setup_logging()
         
     def setup_logging(self):
@@ -62,12 +66,25 @@ class MedicalAIClient:
     def process_image(self, image_path):
         """处理图像并发送加密特征"""
         try:
-            # 这里应该实现真实的特征提取
-            # 暂时使用随机特征代替
-            dummy_features = np.random.randn(2048).astype(np.float32)
+            # 图像预处理
+            preprocess = transforms.Compose([
+                transforms.Resize((224, 224)),  # WideResNet默认输入尺寸
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406],  # ImageNet均值
+                    std=[0.229, 0.224, 0.225]   # ImageNet标准差
+                )
+            ])
+            
+            # 加载并预处理图像
+            image = Image.open(image_path).convert('RGB')
+            image_tensor = preprocess(image)
+            
+            # 使用WideResNet101提取真实特征
+            features = self.feature_extractor.extract_features(image_tensor)
             
             # 加密特征
-            encrypted_features = self.encryption.encrypt_features(dummy_features)
+            encrypted_features = self.encryption.encrypt_features(features)
             
             # 发送加密特征
             message = {
