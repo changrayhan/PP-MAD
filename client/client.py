@@ -16,6 +16,8 @@ class MedicalAIClient:
         self.server_port = server_port
         self.encryption = HomomorphicEncryption()
         self.feature_extractor = WideResNet101FeatureExtractor()  # 初始化特征提取器
+        self.pca_components = None  # 存储PCA组件
+        self.pca_mean = None  # 存储PCA均值
         self.setup_logging()
         
     def setup_logging(self):
@@ -63,9 +65,34 @@ class MedicalAIClient:
             self.logger.error(f"发送公钥时出错: {e}")
             return False
     
+    def get_pca_parameters(self):
+        """从服务器获取PCA参数"""
+        try:
+            message = {'type': 'get_pca_params'}
+            CommunicationProtocol.send_data(self.socket, message, "json")
+            
+            response, _ = CommunicationProtocol.receive_data(self.socket)
+            if response and response.get('status') == 'success':
+                self.pca_components = np.array(response['pca_components'])
+                self.pca_mean = np.array(response['pca_mean'])
+                self.logger.info("成功获取PCA参数")
+                return True
+            else:
+                self.logger.error(f"获取PCA参数失败: {response.get('message', '未知错误')}")
+                return False
+        except Exception as e:
+            self.logger.error(f"获取PCA参数时出错: {e}")
+            return False
+    
     def process_image(self, image_path):
         """处理图像并发送加密特征"""
         try:
+            # 检查是否已获取PCA参数
+            if self.pca_components is None or self.pca_mean is None:
+                if not self.get_pca_parameters():
+                    self.logger.error("无法获取PCA参数，无法继续处理")
+                    return None
+            
             # 图像预处理
             preprocess = transforms.Compose([
                 transforms.Resize((224, 224)),  # WideResNet默认输入尺寸
@@ -83,8 +110,12 @@ class MedicalAIClient:
             # 使用WideResNet101提取真实特征
             features = self.feature_extractor.extract_features(image_tensor)
             
-            # 加密特征
-            encrypted_features = self.encryption.encrypt_features(features)
+            # 在客户端进行PCA降维（明文状态）
+            self.logger.info("在客户端进行PCA降维")
+            reduced_features = features.dot(self.pca_components.T) + self.pca_mean
+            
+            # 加密降维后的特征
+            encrypted_features = self.encryption.encrypt_features(reduced_features)
             
             # 发送加密特征
             message = {
