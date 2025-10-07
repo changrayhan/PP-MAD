@@ -71,15 +71,11 @@ class MedicalAIServer:
         encrypted_vector = ts.ckks_vector_from(self.context, encrypted_features)
         
         # 执行加密状态下的特征比对
-        # 1. 对加密特征应用PCA变换（使用预训练的PCA参数）
-        encrypted_pca = encrypted_vector.matmul(self.padim_model.pca.components_.T)
-        encrypted_pca = encrypted_pca.add(self.padim_model.pca.mean_)
-        
-        # 2. 计算与每个高斯分布中心的加密距离
+        # 直接使用客户端降维后的特征计算距离（不再在服务器端进行PCA）
         min_distance = None
         for mean in self.padim_model.gmm.means_:
             # 计算加密特征与均值的差
-            diff = encrypted_pca - mean
+            diff = encrypted_vector - mean
             
             # 简化版马氏距离计算（加密状态下）
             distance = diff.dot(diff)  # 欧氏距离平方（作为马氏距离的近似）
@@ -107,6 +103,18 @@ class MedicalAIServer:
                     if data.get('type') == 'public_key':
                         self.setup_tenseal_context(data['context'])
                         response = {'status': 'success', 'message': '公钥接收成功'}
+                        CommunicationProtocol.send_data(client_socket, response, "json")
+                    
+                    elif data.get('type') == 'get_pca_params':
+                        # 发送PCA参数给客户端
+                        if self.padim_model.is_fitted:
+                            response = {
+                                'status': 'success',
+                                'pca_components': self.padim_model.pca.components_.tolist(),
+                                'pca_mean': self.padim_model.pca.mean_.tolist()
+                            }
+                        else:
+                            response = {'status': 'error', 'message': '模型未训练'}
                         CommunicationProtocol.send_data(client_socket, response, "json")
                     
                     elif data.get('type') == 'encrypted_features':
