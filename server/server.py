@@ -15,6 +15,14 @@ class MedicalAIServer:
         self.padim_model = PaDimModel()
         self.normal_features = []
         self.context = None
+        self.preprocess = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
+        ])
         self.setup_logging()
         
     def setup_logging(self):
@@ -36,10 +44,13 @@ class MedicalAIServer:
         
         for path in image_paths:
             try:
-                # 这里需要实现图像加载和预处理
-                # 暂时用随机特征代替
-                dummy_features = np.random.randn(2048).astype(np.float32)
-                self.normal_features.append(dummy_features)
+                # 加载并预处理图像
+                image = Image.open(path).convert('RGB')
+                image_tensor = self.preprocess(image)
+                
+                # 使用特征提取器提取真实特征（替换随机特征）
+                features = self.feature_extractor.extract_features(image_tensor)
+                self.normal_features.append(features)
             except Exception as e:
                 self.logger.error(f"处理图像 {path} 时出错: {e}")
         
