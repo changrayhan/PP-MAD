@@ -65,10 +65,30 @@ class MedicalAIServer:
         if not self.context or not self.padim_model.is_fitted:
             raise RuntimeError("服务器未就绪")
         
-        # 这里实现加密状态下的特征比对
-        # 由于同态加密计算复杂，这里返回模拟结果
-        encrypted_result = ts.ckks_vector(self.context, [0.5, 0.3, 0.8])
-        return encrypted_result.serialize()
+        # 反序列化加密特征
+        encrypted_vector = ts.ckks_vector_from(self.context, encrypted_features)
+        
+        # 执行加密状态下的特征比对
+        # 1. 对加密特征应用PCA变换（使用预训练的PCA参数）
+        encrypted_pca = encrypted_vector.matmul(self.padim_model.pca.components_.T)
+        encrypted_pca = encrypted_pca.add(self.padim_model.pca.mean_)
+        
+        # 2. 计算与每个高斯分布中心的加密距离
+        min_distance = None
+        for mean in self.padim_model.gmm.means_:
+            # 计算加密特征与均值的差
+            diff = encrypted_pca - mean
+            
+            # 简化版马氏距离计算（加密状态下）
+            distance = diff.dot(diff)  # 欧氏距离平方（作为马氏距离的近似）
+            
+            # 跟踪最小距离
+            if min_distance is None:
+                min_distance = distance
+            else:
+                min_distance = min(min_distance, distance)
+        
+        return min_distance.serialize()
     
     def handle_client(self, client_socket, address):
         """处理客户端连接"""
