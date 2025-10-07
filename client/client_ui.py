@@ -85,7 +85,6 @@ class ClientUI(QMainWindow):
         
         # 左侧面板
         left_frame = QFrame()
-        # 修复：使用正确的枚举值
         left_frame.setFrameShape(QFrame.Shape.StyledPanel)
         left_layout = QVBoxLayout(left_frame)
         
@@ -152,7 +151,6 @@ class ClientUI(QMainWindow):
         
         # 右侧日志面板
         right_frame = QFrame()
-        # 修复：使用正确的枚举值
         right_frame.setFrameShape(QFrame.Shape.StyledPanel)
         right_layout = QVBoxLayout(right_frame)
         
@@ -175,12 +173,19 @@ class ClientUI(QMainWindow):
             from client.client import MedicalAIClient
             
             self.client = MedicalAIClient()
-            self.connect_btn.setEnabled(False)
-            self.select_btn.setEnabled(True)
-            self.connection_status.setText("已连接")
-            self.log_message("服务器连接成功")
+            # 实际执行连接操作并检查结果
+            if self.client.connect_to_server():
+                self.connect_btn.setEnabled(False)
+                self.select_btn.setEnabled(True)
+                self.connection_status.setText("已连接")
+                self.log_message("服务器连接成功")
+            else:
+                self.connection_status.setText("连接失败")
+                self.log_message("服务器连接失败: 无法建立网络连接")
+                self.client = None  # 连接失败则清除客户端对象
         except Exception as e:
             self.log_message(f"连接服务器失败: {str(e)}")
+            self.connection_status.setText("连接出错")
         
     def select_image(self):
         """选择图像"""
