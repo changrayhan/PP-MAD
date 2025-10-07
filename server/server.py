@@ -6,6 +6,8 @@ import tenseal as ts
 from .model import WideResNet101FeatureExtractor, PaDimModel
 from shared.communication import CommunicationProtocol
 import logging
+from PIL import Image
+import torchvision.transforms as transforms 
 
 class MedicalAIServer:
     def __init__(self, host='localhost', port=8888):
@@ -48,7 +50,7 @@ class MedicalAIServer:
                 image = Image.open(path).convert('RGB')
                 image_tensor = self.preprocess(image)
                 
-                # 使用特征提取器提取真实特征（替换随机特征）
+                # 使用特征提取器提取真实特征
                 features = self.feature_extractor.extract_features(image_tensor)
                 self.normal_features.append(features)
             except Exception as e:
